@@ -90,10 +90,16 @@ export const createTitle = async (title, instructions) => {
   return apiInstance.post('/titles', { title, instructions });
 };
 
-export const getTitles = async () => {
-  const apiInstance = await ensureAPI();
-  return apiInstance.get('/titles');
-};
+// export const getTitles = async () => {
+//   const apiInstance = await ensureAPI();
+//   return apiInstance.get('/titles');
+// };
+
+
+export function getTitles(config = {}) {
+  return api.get('/titles', config);
+}
+
 
 export const getTitle = async (id) => {
   const apiInstance = await ensureAPI();

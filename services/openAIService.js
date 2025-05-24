@@ -179,18 +179,34 @@ async function generateImage(ideaId, prompt, references = []) {
     const referenceIds = references.map(ref => ref.id).filter(id => id != null);
     const usedReferenceIdsJSON = referenceIds.length > 0 ? JSON.stringify(referenceIds) : null;
 
+
+    
+//RAAR - CHANGE
     // Update database with image URL and status
-    const completeUpdateParams = [`uploads/${fileName}`, `data:image/png;base64,${imageData}`, 'completed', usedReferenceIdsJSON, ideaId];
+    // const completeUpdateParams = [`uploads/${fileName}`, `data:image/png;base64,${imageData}`, 'completed', usedReferenceIdsJSON, ideaId];
+    const completeUpdateParams = [
+  `/uploads/${fileName}`,       // add leading slash so browser resolves
+  'completed',
+  usedReferenceIdsJSON,
+  ideaId
+];
+
     // Validate parameters
     if (completeUpdateParams.some(p => p === undefined)) {
       console.error('Attempted to execute query with undefined parameter:', { completeUpdateParams });
       throw new Error('Invalid query parameter detected');
     }
+    //RAAR - CHANGE
+    // await pool.execute(
+    //   'UPDATE paintings SET image_url = ?, image_data = ?, status = ?, used_reference_ids = ? WHERE idea_id = ?',
+    //   completeUpdateParams
+    // );
+
     
-    await pool.execute(
-      'UPDATE paintings SET image_url = ?, image_data = ?, status = ?, used_reference_ids = ? WHERE idea_id = ?',
-      completeUpdateParams
-    );
+await pool.execute(
+  'UPDATE paintings SET image_url = ?, status = ?, used_reference_ids = ? WHERE idea_id = ?',
+  completeUpdateParams
+);
     console.log(`Updated database status to completed for idea ${ideaId}`);
 
     return {

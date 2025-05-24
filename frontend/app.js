@@ -4,7 +4,7 @@ import {
   createTitle, getTitles, getTitle, updateTitle, deleteTitle,
   uploadReference, getReferences, getGlobalReferences, deleteReference,
   generateThumbnails as generatePaintings, getThumbnails as getPaintings
-} from './frontend/apiService.js';
+} from './apiService.js';
 
 // Simulated Server API
 const ServerAPI = {
@@ -415,89 +415,162 @@ function setupEventListeners() {
         clearMainContent();
         titleInput.focus();
     });
-    
-    // Generate Button
-    generateBtn.addEventListener('click', async () => {
-        const title = titleInput.value.trim();
-        if (!title) {
-            alert('Please enter a title');
-            return;
-        }
-        
-        showLoading(true);
-        
-        try {
-            const instructions = customInstructions.value.trim();
-            const quantity = parseInt(quantitySelect.value) || 5;
-            
-            console.log("Creating/updating title:", { title, instructions });
-            
-            // Check if this is a new title or existing one
-            if (!currentTitle || currentTitle.title !== title) {
-                // Create new title
-                console.log("Creating new title");
-                const response = await createTitle(title, instructions);
-                console.log("Title created:", response.data);
-                currentTitle = response.data;
-            } else {
-                // Update existing title
-                console.log("Updating existing title:", currentTitle.id);
-                const response = await updateTitle(currentTitle.id, title, instructions);
-                console.log("Title updated:", response.data);
-                currentTitle = response.data;
-            }
-            
-            // Upload any new title-specific references
-            if (!globalReferenceToggle.checked && currentTitle.references) {
-                console.log("Processing title-specific references");
-                for (const ref of currentTitle.references) {
-                    if (!ref.id) { // New reference that hasn't been uploaded
-                        console.log("Uploading new reference");
-                        await uploadReference(currentTitle.id, ref.data, false);
-                    }
-                }
-            }
-            
-            // Generate thumbnails
-            console.log("Generating thumbnails for title ID:", currentTitle.id, "Quantity:", quantity);
-            const generateResponse = await generatePaintings(currentTitle.id, quantity);
-            console.log("Generate thumbnails response:", generateResponse.data);
-            
-            // Start polling for thumbnail status instead of loading immediately
-            pollThumbnailStatus(currentTitle.id, quantity);
 
-            // Refresh titles list after starting generation/polling
-            console.log("Refreshing titles list");
-            const titlesResponse = await getTitles();
-            titles = titlesResponse.data.titles;
-            renderTitlesList();
-            
-            // No longer call loadThumbnails here immediately
-            // console.log("Loading thumbnails");
-            // await loadThumbnails(currentTitle.id);
-        } catch (error) {
-            console.error('Error generating thumbnails:', error);
-            showLoading(false);
-            
-            // More detailed error information
-            if (error.response) {
-                // The request was made and the server responded with a status code
-                // that falls out of the range of 2xx
-                console.error("Server responded with error:", error.response.status);
-                console.error("Error data:", error.response.data);
-                alert(`Server error (${error.response.status}): ${error.response.data?.error || 'Unknown error'}`);
-            } else if (error.request) {
-                // The request was made but no response was received
-                console.error("No response received:", error.request);
-                alert('No response from server. Please check if the backend is running.');
-            } else {
-                // Something happened in setting up the request that triggered an Error
-                console.error("Request setup error:", error.message);
-                alert(`Error: ${error.message}`);
-            }
-        }
-    });
-    
+/* ---------- tiny utilities ---------- */
+function nextStartIndex() {
+  return currentTitle && Array.isArray(currentTitle.thumbnails)
+    ? currentTitle.thumbnails.length
+    : thumbnailsGrid.querySelectorAll('.thumbnail-item').length;
+}
+
+function insertProgressCard(idx) {
+  thumbnailsGrid.insertAdjacentHTML(
+    'beforeend',
+    `<div class="thumbnail-item" id="thumb-${idx}" data-stage="progress">
+        <div class="loading-thumbnail">
+          <span class="spinner"></span>
+          <span>Processing…</span>
+        </div>
+     </div>`
+  );
+}
+
+/*  Per-batch polling: watch ONLY indices >= startIdx  */
+// function startBatchPolling(titleId, startIdx, qty) {
+//   const finished = new Set();
+//   let keepPolling = true;
+
+//   (async function loop() {
+//     while (keepPolling) {
+//       try {
+//         const { data } = await getPaintings(titleId, { timeout: 0 });
+//         const list = (data.paintings || []).filter(
+//           p => p.title_id === titleId && p.index >= startIdx
+//         );
+
+//         list.forEach(p => {
+//           if (finished.has(p.index)) return;
+
+//           const box = document.getElementById(`thumb-${p.index}`);
+//           if (!box) return;
+
+//           if (p.status === 'processing' && box.dataset.stage !== 'idea') {
+//             box.dataset.stage = 'idea';
+//             box.innerHTML =
+//               `<div class="loading-thumbnail">
+//                  <span class="spinner"></span>
+//                  <span>Generating idea…</span>
+//                </div>`;
+//           }
+//           if (p.status === 'completed' || p.status === 'failed') {
+//             renderThumbnail(p, p.index);   // replaces card in-place
+//             finished.add(p.index);
+//           }
+//         });
+
+//         if (finished.size >= qty) keepPolling = false;
+//       } catch (_) { /* swallow network hiccups and retry */ }
+//       await new Promise(r => setTimeout(r, 2000000));
+//     }
+//   })();
+// }
+
+function startBatchPolling(titleId, startIdx, qty, token) {
+  const finished = new Set();
+
+  (async function loop() {
+    while (token === currentPollingToken) {        // ← **STOP** if user switched
+      try {
+        const { data } = await getPaintings(titleId, { timeout: 0 });
+        const list = (data.paintings || []).filter(
+          p => p.title_id === titleId && p.index >= startIdx
+        );
+
+        list.forEach(p => {
+          if (finished.has(p.index)) return;
+
+          const box = document.getElementById(`thumb-${p.index}`);
+          if (!box) return;                        // grid belongs to another title
+
+          if (p.status === 'processing' && box.dataset.stage !== 'idea') {
+            box.dataset.stage = 'idea';
+            box.innerHTML =
+              `<div class="loading-thumbnail">
+                 <span class="spinner"></span>
+                 <span>Generating idea…</span>
+               </div>`;
+          }
+          if (p.status === 'completed' || p.status === 'failed') {
+            renderThumbnail(p, p.index);
+            finished.add(p.index);
+          }
+        });
+
+        if (finished.size >= qty) return;         // batch done
+      } catch (_) { /* swallow & retry */ }
+      await new Promise(r => setTimeout(r, 2000));
+    }
+  })();
+}
+
+/* ------- Generate button (new version) ------- */
+generateBtn.addEventListener('click', async () => {
+  const title = titleInput.value.trim();
+  if (!title) { alert('Please enter a title'); return; }
+
+  /* 1. quick overlay for UX only */
+  showLoading(true);
+  setTimeout(() => showLoading(false), 3000);
+
+  try {
+    const instructions = customInstructions.value.trim();
+    const qty = parseInt(quantitySelect.value, 10) || 1;
+
+    // create/update title
+    if (!currentTitle || currentTitle.title !== title)
+         currentTitle = (await createTitle(title, instructions)).data;
+    else currentTitle = (await updateTitle(currentTitle.id, title, instructions)).data;
+
+    // upload any new per-title refs
+    if (!globalReferenceToggle.checked && currentTitle.references)
+      for (const r of currentTitle.references)
+        if (!r.id) await uploadReference(currentTitle.id, r.data, false);
+
+    /* 2. progress cards WITHOUT clearing existing thumbnails */
+    const startIdx = nextStartIndex();
+    for (let i = 0; i < qty; i++) insertProgressCard(startIdx + i);
+
+    /* 3. fire the backend job & start scoped polling */
+    await generatePaintings(currentTitle.id, qty);
+    startBatchPolling(currentTitle.id, startIdx, qty);
+
+    /* 4. refresh sidebar titles (non-blocking) */
+    getTitles().then(res => { titles = res.data.titles; renderTitlesList(); });
+  }
+  catch (err) {
+    showLoading(false);
+    const msg = err.response
+      ? `Server error (${err.response.status})`
+      : err.message || 'Unknown error';
+    alert(msg);
+  }
+});
+
+/* inject progress cards when loading a title */
+function renderSavedThumbnails(title) {
+  thumbnailsGrid.innerHTML = '';
+  if (!title || !Array.isArray(title.thumbnails) || !title.thumbnails.length) {
+    thumbnailsEmptyState.style.display = 'block';
+    return;
+  }
+  thumbnailsEmptyState.style.display = 'none';
+  title.thumbnails.forEach(t => {
+    if (t.status === 'processing') insertProgressCard(t.index, false);
+    else renderThumbnail(t, t.index);
+  });
+  showExistingProgress(title);
+}
+
     // More Thumbnails Button
     moreThumbnailsBtn.addEventListener('click', async () => {
         if (!currentTitle) return;
@@ -746,6 +819,8 @@ function renderReferenceImages(references, container) {
         
         const imgContainer = document.createElement('div');
         imgContainer.className = 'reference-image';
+
+        
         
         const img = document.createElement('img');
         img.src = imageDataString;
@@ -973,6 +1048,9 @@ function renderThumbnail(thumbnailData, index) {
     }
     
     // Regular thumbnail rendering for successful thumbnails
+
+    // console.error('Rendering reference image:', ref.id, imageDataString);
+    
     const img = document.createElement('img');
     img.src = thumbnailData.image_url;
     img.alt = thumbnailData.summary;
@@ -1335,7 +1413,7 @@ async function loadThumbnails(titleId) {
 // Poll for thumbnail generation status
 async function pollThumbnailStatus(titleId, expectedQuantity, attempt = 0) {
     console.log(`[Poll #${attempt + 1}] Entered pollThumbnailStatus for title ${titleId}`);
-    const maxAttempts = 40; // Poll for up to 2 minutes (40 * 3s)
+    const maxAttempts = 80; // Poll for up to 2 minutes (40 * 3s)
     const pollInterval = 3000; // Poll every 3 seconds
 
     if (attempt >= maxAttempts) {
@@ -1428,6 +1506,32 @@ async function pollThumbnailStatus(titleId, expectedQuantity, attempt = 0) {
         }
     }
 }
+/* ─── Live sidebar refresh every 5 s ───────────────────────────── */
+function startSidebarAutoRefresh() {
+  setInterval(async () => {
+    try {
+      const res = await getTitles({ timeout: 0 });      // no 10 s limit
+      const latest = res.data.titles || [];
+
+      // quick diff test: id + updated_at
+      const changed =
+        latest.length !== titles.length ||
+        latest.some((t, i) =>
+          !titles[i] ||
+          t.id !== titles[i].id ||
+          t.updated_at !== titles[i].updated_at
+        );
+
+      if (changed) {
+        titles = latest;
+        renderTitlesList();     // existing function
+      }
+    } catch (_) {
+      /* network hiccup → ignore & retry next tick */
+    }
+  }, 5000);
+}
+startSidebarAutoRefresh();
 
 // Initialize when the DOM is loaded
 document.addEventListener('DOMContentLoaded', init); 

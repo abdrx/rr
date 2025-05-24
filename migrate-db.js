@@ -57,6 +57,14 @@ async function migrateDatabase() {
       FROM information_schema.tables 
       WHERE table_schema = 'thumbnail_generator'
     `);
+
+    await db.query(`
+    alter table paintings
+      add column status enum('queued','prompt','image','done','fail') default 'queued',
+      add column prompt text,
+      add column image_url text,
+      add column error text
+  `);
     
     console.log('Tables found:', tables);
     

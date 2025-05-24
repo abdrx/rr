@@ -1,6 +1,29 @@
 const { pool } = require('../database');
 const openRouterService = require('../services/openRouterService');
 const openAIService = require('../services/openAIService');
+const { paintQueue } = require('../queue')
+
+exports.generate = async (req, res) => {
+  const { titleId, qty, instructions, refs } = req.body
+  const ids = []
+
+  for (let i = 0; i < qty; i++) {
+    const [r] = await db.query(
+      'insert into paintings (title_id, status) values (?, "queued")',
+      [titleId]
+    )
+    ids.push(r.insertId)
+    paintQueue.add('job', {
+      paintingId: r.insertId,
+      titleId,
+      title: req.title,
+      instructions,
+      refs
+    })
+  }
+  res.json({ paintingIds: ids })   // front-end shows placeholders immediately
+}
+
 
 // Generate painting ideas (parallel processing)
 async function generatePaintings(req, res) {
