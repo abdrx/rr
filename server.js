@@ -96,3 +96,4 @@ initializeDatabase().then(() => {
 })
 
 
+app.use(cors())

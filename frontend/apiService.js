@@ -148,6 +148,20 @@ export const getThumbnails = async (titleId) => {
   return apiInstance.get(`/paintings/${titleId}`);
 };
 
+export async function regeneratePainting(paintingId) {
+  const token = localStorage.getItem('token');
+  return fetch(`/paintings/${paintingId}/regenerate`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    }
+  }).then(res => {
+    if (!res.ok) throw new Error('Failed to regenerate painting');
+    return res.json();
+  });
+}
+
 // Initialize API when this module is imported
 initAPI();
 

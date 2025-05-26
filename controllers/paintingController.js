@@ -304,7 +304,55 @@ async function getPaintings(req, res) {
   }
 }
 
+async function regenerateImage(req, res) {
+  if (!req.user || !req.user.id) {
+    console.error('User not authenticated properly');
+    return res.status(401).json({ error: 'Authentication required' });
+  }
+
+  const { paintingId } = req.params;
+
+  if (!paintingId) {
+    return res.status(400).json({ error: 'Painting ID is required' });
+  }
+
+  try {
+    const [paintingRows] = await pool.execute(
+      'SELECT p.id, p.idea_id, i.full_prompt, t.title, t.instructions FROM paintings p JOIN ideas i ON p.idea_id = i.id JOIN titles t ON p.title_id = t.id WHERE p.id = ?',
+      [paintingId]
+    );
+
+    if (paintingRows.length === 0) {
+      return res.status(404).json({ error: 'Painting not found' });
+    }
+
+    const painting = paintingRows[0];
+
+    const [refRows] = await pool.execute(
+      'SELECT id, image_data FROM references2 WHERE title_id = (SELECT title_id FROM paintings WHERE id = ?) OR (user_id = ? AND is_global = 1)',
+      [paintingId, req.user.id]
+    );
+
+    const references = refRows.map(row => ({ id: row.id, image_data: row.image_data }));
+
+    await pool.execute(
+      'UPDATE paintings SET status = ?, error_message = NULL WHERE id = ?',
+      ['pending', paintingId]
+    );
+
+    openAIService.generateImage(painting.idea_id, painting.full_prompt, references)
+      .catch(error => console.error(`Error regenerating image for painting ${paintingId}:`, error));
+
+    res.status(200).json({ message: 'Regeneration initiated successfully', paintingId });
+  } catch (error) {
+    console.error('Error in regenerateImage:', error);
+    res.status(500).json({ error: 'Failed to initiate regeneration' });
+  }
+}
+
+
 module.exports = {
   generatePaintings,
-  getPaintings
+  getPaintings,
+  regenerateImage
 }; 
