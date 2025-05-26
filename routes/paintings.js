@@ -8,7 +8,7 @@ const router = express.Router();
 router.use(authMiddleware);
 
 router.post('/generate', generatePaintings);
-router.post('/:paintingId/regenerate', regenerateImage);
+router.post('/regenerate', regenerateImage);
 router.get('/:titleId', getPaintings);
 
 module.exports = router; 

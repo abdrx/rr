@@ -3,7 +3,7 @@ import {
   login, register, getProfile, 
   createTitle, getTitles, getTitle, updateTitle, deleteTitle,
   uploadReference, getReferences, getGlobalReferences, deleteReference,
-  generateThumbnails as generatePaintings, getThumbnails as getPaintings
+  generateThumbnails as generatePaintings, getThumbnails as getPaintings,regeneratePainting
 } from './apiService.js';
 
 // Simulated Server API
@@ -13,6 +13,9 @@ const ServerAPI = {
         titles: [],
         globalReferences: []
     },
+
+    //write a code to regenerate a thumbnail with id
+    
     
     // Get data from server
     async getTitles() {
@@ -44,6 +47,8 @@ const ServerAPI = {
     // Assume response.data contains the new thumbnail object
     return response.data;
   },
+
+  
     
     // Save data to server
     async saveTitles(titles) {
@@ -1049,8 +1054,14 @@ function renderThumbnail(thumbnailData, index) {
     downloadBtn.textContent = 'Download';
     downloadBtn.addEventListener('click', (e) => {
         e.stopPropagation(); // Prevent opening modal when clicking download
-        // In a real app, this would download the image
-        alert(`Downloading: ${thumbnailData.summary}`);
+        // Download the image
+        const link = document.createElement('a');
+        link.href = thumbnailData.image_url;
+        link.download = thumbnailData.summary.replace(/[^\w\d_\-]+/g, '_') + '.jpg';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        lert(`Downloading: ${thumbnailData.summary}`);
     });
     
     const regenerateBtn = document.createElement('button');
@@ -1058,7 +1069,6 @@ function renderThumbnail(thumbnailData, index) {
     regenerateBtn.textContent = 'Regenerate';
     regenerateBtn.addEventListener('click', (e) => {
         e.stopPropagation(); // Prevent opening modal when clicking regenerate
-        // In a real app, this would regenerate this specific thumbnail
         regenerateSingleThumbnail(index, thumbnailData.id);
     });
     
@@ -1128,7 +1138,7 @@ async function regenerateSingleThumbnail(index, id) {
         return;
     }
 
-    const thumbContainer = document.getElementById(`thumb-${thumbIdx}`);
+    const thumbContainer = document.getElementById(`thumb-${index}`);
     if (!thumbContainer) {
         alert('Thumbnail container not found.');
         return;

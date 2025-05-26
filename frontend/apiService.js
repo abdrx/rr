@@ -148,20 +148,34 @@ export const getThumbnails = async (titleId) => {
   return apiInstance.get(`/paintings/${titleId}`);
 };
 
-export async function regeneratePainting(paintingId) {
-  const token = localStorage.getItem('token');
-  return fetch(`/paintings/${paintingId}/regenerate`, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json'
-    }
-  }).then(res => {
-    if (!res.ok) throw new Error('Failed to regenerate painting');
-    return res.json();
-  });
-}
+// export const regeneratePainting = async (paintingId) => {
+//   console.log(`/${paintingId}/regenerate`);
+//   const apiInstance = await ensureAPI();
+//   return apiInstance.post(`/${paintingId}/regenerate`);
+// };
 
+export const regeneratePainting = async (paintingId) => {
+  console.log(`Attempting to regenerate painting with ID: ${paintingId}`);
+  try {
+    const apiInstance = await ensureAPI();
+    const response = await apiInstance.post(`/paintings/regenerate`, { paintingId }); // Send paintingId in the request body
+    console.log(`Regeneration successful for painting ID: ${paintingId}`, response.data);
+    return response;
+  } catch (error) {
+    console.error(`Error regenerating painting with ID: ${paintingId}`, error);
+    if (error.response) {
+      console.error("Response data:", error.response.data);
+      console.error("Response status:", error.response.status);
+      console.error("Response headers:", error.response.headers);
+    } else if (error.request) {
+      console.error("No response received:", error.request);
+    } else {
+      console.error("Error message:", error.message);
+    }
+    console.error("Error config:", error.config);
+    throw error;
+  }
+};
 // Initialize API when this module is imported
 initAPI();
 

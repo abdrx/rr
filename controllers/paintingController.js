@@ -164,7 +164,7 @@ async function getPaintings(req, res) {
   if (!titleId) {
     return res.status(400).json({ error: 'Title ID is required' });
   }
-  console.log(`[Title ID: ${titleId}] getPaintings started.`);
+  //console.log(`[Title ID: ${titleId}] getPaintings started.`);
 
   try {
     const titleCheckParams = [titleId];
@@ -181,7 +181,7 @@ async function getPaintings(req, res) {
       console.warn(`[Title ID: ${titleId}] Title not found during initial check.`);
       return res.status(404).json({ error: 'Title not found' });
     }
-    console.log(`[Title ID: ${titleId}] Title existence check completed in ${Date.now() - stepStartTime}ms.`);
+    //console.log(`[Title ID: ${titleId}] Title existence check completed in ${Date.now() - stepStartTime}ms.`);
     stepStartTime = Date.now(); 
     
     const paintingQuery = `
@@ -204,11 +204,11 @@ async function getPaintings(req, res) {
     }
     
     const [paintingRows] = await pool.execute(paintingQuery, paintingParams);
-    console.log(`[Title ID: ${titleId}] Initial painting query fetched ${paintingRows ? paintingRows.length : 0} rows in ${Date.now() - stepStartTime}ms.`);
+    //console.log(`[Title ID: ${titleId}] Initial painting query fetched ${paintingRows ? paintingRows.length : 0} rows in ${Date.now() - stepStartTime}ms.`);
     stepStartTime = Date.now();
 
     if (!paintingRows || paintingRows.length === 0) {
-      console.log(`[Title ID: ${titleId}] No paintings found. Total time: ${Date.now() - functionStartTime}ms.`);
+      //console.log(`[Title ID: ${titleId}] No paintings found. Total time: ${Date.now() - functionStartTime}ms.`);
       return res.status(200).json({ paintings: [], referenceDataMap: {} }); // Return empty map
     }
 
@@ -227,7 +227,7 @@ async function getPaintings(req, res) {
         }
       }
     });
-    console.log(`[Title ID: ${titleId}] Collected ${allReferenceIds.size} unique reference IDs in ${Date.now() - stepStartTime}ms.`);
+    //console.log(`[Title ID: ${titleId}] Collected ${allReferenceIds.size} unique reference IDs in ${Date.now() - stepStartTime}ms.`);
     stepStartTime = Date.now();
 
     let serverReferenceDataMap = {}; // Changed to object for JSON response
@@ -249,11 +249,11 @@ async function getPaintings(req, res) {
           actualRefDataRows.forEach(refRow => {
             serverReferenceDataMap[refRow.id] = refRow.image_data; // Populate object
           });
-          console.log(`[Title ID: ${titleId}] Bulk fetched ${Object.keys(serverReferenceDataMap).length} reference data items in ${Date.now() - stepStartTime}ms.`);
+          //console.log(`[Title ID: ${titleId}] Bulk fetched ${Object.keys(serverReferenceDataMap).length} reference data items in ${Date.now() - stepStartTime}ms.`);
         }
       } catch (refQueryError) {
           console.error(`[Title ID: ${titleId}] Error fetching bulk reference data:`, refQueryError);
-          console.log(`[Title ID: ${titleId}] Proceeding without detailed reference images due to bulk fetch error. Time before error: ${Date.now() - stepStartTime}ms.`);
+          //console.log(`[Title ID: ${titleId}] Proceeding without detailed reference images due to bulk fetch error. Time before error: ${Date.now() - stepStartTime}ms.`);
       }
     }
     stepStartTime = Date.now();
@@ -281,7 +281,22 @@ async function getPaintings(req, res) {
         fullPrompt: row.fullPrompt || ''
       };
 
-      return {
+
+        
+      // console.log({
+      //   id: row.id,
+      //   idea_id: row.idea_id,
+      //   title_id: row.title_id,
+      //   image_url: row.image_url || '',
+      //   status: row.status || 'unknown',
+      //   created_at: row.created_at || new Date(),
+      //   error_message: row.error_message || '',
+      //   summary: row.summary || '',
+      //   promptDetails: promptDetails
+      // }); 
+
+
+           return {
         id: row.id,
         idea_id: row.idea_id,
         title_id: row.title_id,
@@ -293,9 +308,9 @@ async function getPaintings(req, res) {
         promptDetails: promptDetails
       };
     });
-    console.log(`[Title ID: ${titleId}] Mapped paintings to details in ${Date.now() - stepStartTime}ms.`);
+    //console.log(`[Title ID: ${titleId}] Mapped paintings to details in ${Date.now() - stepStartTime}ms.`);
     
-    console.log(`[Title ID: ${titleId}] getPaintings completed successfully in ${Date.now() - functionStartTime}ms.`);
+    //console.log(`[Title ID: ${titleId}] getPaintings completed successfully in ${Date.now() - functionStartTime}ms.`);
     res.status(200).json({ paintings: paintingsWithDetails, referenceDataMap: serverReferenceDataMap });
 
   } catch (error) {
@@ -304,52 +319,110 @@ async function getPaintings(req, res) {
   }
 }
 
+// async function regenerateImage(req, res) {
+//   console.log('Regenerate image request received:', JSON.stringify(req.body.paintingId), (req.user ? `for user ${req.user.id}` : ''));
+//   if (!req.user || !req.user.id) {
+//     console.error('User not authenticated properly');
+//     return res.status(401).json({ error: 'Authentication required' });
+//   }
+
+//   const { paintingId } = req.body;
+
+//   if (!paintingId) {
+//     return res.status(400).json({ error: 'Painting ID is required' });
+//   }
+
+//   try {
+//     const [paintingRows] = await pool.execute(
+//       'SELECT p.id, p.idea_id, i.full_prompt, t.title, t.instructions FROM paintings p JOIN ideas i ON p.idea_id = i.id JOIN titles t ON p.title_id = t.id WHERE p.id = ?',
+//       [paintingId]
+//     );
+
+//     if (paintingRows.length === 0) {
+//       return res.status(404).json({ error: 'Painting not found' });
+//     }
+
+//     const painting = paintingRows[0];
+
+//     const [refRows] = await pool.execute(
+//       'SELECT id, image_data FROM references2 WHERE title_id = (SELECT title_id FROM paintings WHERE id = ?) OR (user_id = ? AND is_global = 1)',
+//       [paintingId, req.user.id]
+//     );
+
+//     const references = refRows.map(row => ({ id: row.id, image_data: row.image_data }));
+
+//     await pool.execute(
+//       'UPDATE paintings SET status = ?, error_message = NULL WHERE id = ?',
+//       ['pending', paintingId]
+//     );
+
+//     openAIService.generateImage(painting.idea_id, painting.full_prompt, references)
+//       .catch(error => console.error(`Error regenerating image for painting ${paintingId}:`, error));
+
+//     res.status(200).json({ message: 'Regeneration initiated successfully', paintingId });
+//   } catch (error) {
+//     console.error('Error in regenerateImage:', error);
+//     res.status(500).json({ error: 'Failed to initiate regeneration' });
+//   }
+// }
 async function regenerateImage(req, res) {
+  const { paintingId, skip = false } = req.body;
+  console.log('Regenerate image request received:', { paintingId, skip, user: req.user?.id });
+
   if (!req.user || !req.user.id) {
     console.error('User not authenticated properly');
     return res.status(401).json({ error: 'Authentication required' });
   }
-
-  const { paintingId } = req.params;
 
   if (!paintingId) {
     return res.status(400).json({ error: 'Painting ID is required' });
   }
 
   try {
-    const [paintingRows] = await pool.execute(
-      'SELECT p.id, p.idea_id, i.full_prompt, t.title, t.instructions FROM paintings p JOIN ideas i ON p.idea_id = i.id JOIN titles t ON p.title_id = t.id WHERE p.id = ?',
+    if (false) {
+
+      //Wrote to skip real regeneration
+      // Assign default image instantly
+      const defaultUrl = '/uploads/default.png';
+      await pool.execute(
+        'UPDATE paintings SET image_url = ?, status = ?, error_message = NULL WHERE id = ?',
+        [defaultUrl, 'completed', paintingId]
+      );
+      console.log(`Skipped real regeneration, assigned default image for painting ${paintingId}`);
+      return res.status(200).json({ message: 'Default image assigned', paintingId, image_url: defaultUrl });
+    }
+
+    const [rows] = await pool.execute(
+      'SELECT p.id, p.idea_id, i.full_prompt, t.title, t.instructions \n       FROM paintings p \n       JOIN ideas i ON p.idea_id = i.id \n       JOIN titles t ON p.title_id = t.id \n       WHERE p.id = ?',
       [paintingId]
     );
 
-    if (paintingRows.length === 0) {
+    if (rows.length === 0) {
       return res.status(404).json({ error: 'Painting not found' });
     }
-
-    const painting = paintingRows[0];
+    const painting = rows[0];
 
     const [refRows] = await pool.execute(
-      'SELECT id, image_data FROM references2 WHERE title_id = (SELECT title_id FROM paintings WHERE id = ?) OR (user_id = ? AND is_global = 1)',
+      'SELECT id, image_data FROM references2 \n       WHERE title_id = (SELECT title_id FROM paintings WHERE id = ?) \n         OR (user_id = ? AND is_global = 1)',
       [paintingId, req.user.id]
     );
+    const references = refRows.map(r => ({ id: r.id, image_data: r.image_data }));
 
-    const references = refRows.map(row => ({ id: row.id, image_data: row.image_data }));
-
+    // Mark as pending and clear previous errors
     await pool.execute(
       'UPDATE paintings SET status = ?, error_message = NULL WHERE id = ?',
       ['pending', paintingId]
     );
 
     openAIService.generateImage(painting.idea_id, painting.full_prompt, references)
-      .catch(error => console.error(`Error regenerating image for painting ${paintingId}:`, error));
+      .catch(err => console.error(`Error generating image for painting ${paintingId}:`, err));
 
-    res.status(200).json({ message: 'Regeneration initiated successfully', paintingId });
+    res.status(200).json({ message: 'Regeneration initiated', paintingId });
   } catch (error) {
     console.error('Error in regenerateImage:', error);
     res.status(500).json({ error: 'Failed to initiate regeneration' });
   }
 }
-
 
 module.exports = {
   generatePaintings,
