@@ -1053,15 +1053,17 @@ function renderThumbnail(thumbnailData, index) {
     downloadBtn.className = 'action-btn';
     downloadBtn.textContent = 'Download';
     downloadBtn.addEventListener('click', (e) => {
-        e.stopPropagation(); // Prevent opening modal when clicking download
-        // Download the image
-        const link = document.createElement('a');
-        link.href = thumbnailData.image_url;
-        link.download = thumbnailData.summary.replace(/[^\w\d_\-]+/g, '_') + '.jpg';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        lert(`Downloading: ${thumbnailData.summary}`);
+    e.stopPropagation();
+    if (!thumbnailData.image_url) {
+        alert('No image available to download');
+        return;
+    }
+    const link = document.createElement('a');
+    link.href = thumbnailData.image_url;
+    link.download = thumbnailData.summary.replace(/[^\w\d_\-]+/g, '_') + '.jpg';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
     });
     
     const regenerateBtn = document.createElement('button');
